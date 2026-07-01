@@ -33,7 +33,7 @@ public class OrderItem {
 
     public BigDecimal getSubTotal() {
         if (this.price == null || this.quantity == null) {
-            throw new IllegalStateException("Erro interno: Tentativa de calcular subtotal de um item com preço ou quantidade nulos. ID do Produto" + (this.product != null ? this.product.getId() : "Desconhecido"));
+            throw new IllegalStateException("Erro interno: Tentativa de calcular subtotal de um item com preço ou quantidade nulos. ID do Produto " + (this.product != null ? this.product.getId() : "Desconhecido"));
         }
         return this.price.multiply(BigDecimal.valueOf(quantity));
     }
