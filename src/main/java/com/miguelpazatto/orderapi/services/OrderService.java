@@ -1,0 +1,95 @@
+package com.miguelpazatto.orderapi.services;
+
+import com.miguelpazatto.orderapi.dto.OrderItemRequestDTO;
+import com.miguelpazatto.orderapi.dto.OrderRequestDTO;
+import com.miguelpazatto.orderapi.dto.OrderResponseDTO;
+import com.miguelpazatto.orderapi.entities.Customer;
+import com.miguelpazatto.orderapi.entities.Order;
+import com.miguelpazatto.orderapi.entities.OrderItem;
+import com.miguelpazatto.orderapi.entities.Product;
+import com.miguelpazatto.orderapi.entities.enums.OrderStatus;
+import com.miguelpazatto.orderapi.repositories.CustomerRepository;
+import com.miguelpazatto.orderapi.repositories.OrderRepository;
+import com.miguelpazatto.orderapi.repositories.ProductRepository;
+import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+public class OrderService {
+
+    private final OrderRepository orderRepository;
+
+    private final ProductRepository productRepository;
+
+    private final CustomerRepository customerRepository;
+
+    public List<OrderResponseDTO> findAll() {
+        List<Order> orders = orderRepository.findAll();
+        return orders.stream().map(OrderResponseDTO::new).toList();
+    }
+
+    public OrderResponseDTO findById(Long id) {
+        Optional<Order> order = orderRepository.findById(id);
+        return order.map(OrderResponseDTO::new).orElseThrow();
+    }
+
+    @Transactional
+    public OrderResponseDTO insert(OrderRequestDTO newOrder) {
+
+        Map<Long, Integer> groupedItems = newOrder.orderItems().stream()
+                .collect(Collectors.toMap(
+                        OrderItemRequestDTO::productId,
+                        OrderItemRequestDTO::quantity,
+                        Integer::sum
+                ));
+
+        List<Long> productsIds = new ArrayList<>(groupedItems.keySet());
+        List<Product> products = productRepository.findAllById(productsIds);
+
+        Map<Long, Product> productsMap = products.stream().collect(Collectors.toMap(Product::getId, p -> p));
+
+        groupedItems.forEach((productId, quantity) -> {
+
+            Product product = productsMap.get(productId);
+
+            if (product == null) {
+                throw new IllegalArgumentException("Produto com ID " + productId + " não existe.");
+            }
+
+            if (quantity > product.getAvailableStock()) {
+                throw new IllegalArgumentException("Estoque do Produto com ID " + product.getId() + " insuficiente.");
+            }
+
+        });
+
+        Order order = new Order();
+        order.setOrderStatus(OrderStatus.PENDING);
+
+        Customer customer = customerRepository.findById(newOrder.customerId()).orElseThrow(() -> new IllegalArgumentException("Cliente não encontrado"));
+
+        groupedItems.forEach((productId, quantity) -> {
+
+            Product product = productsMap.get(productId);
+
+            OrderItem orderItem = new OrderItem();
+            orderItem.setProduct(product);
+            orderItem.setQuantity(quantity);
+            orderItem.setPrice(product.getPrice());
+            orderItem.setOrder(order);
+
+            order.getOrderItems().add(orderItem);
+        });
+
+        orderRepository.save(order);
+        return new OrderResponseDTO(order);
+    }
+
+}
