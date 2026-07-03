@@ -75,9 +75,13 @@ public class OrderService {
 
         Customer customer = customerRepository.findById(newOrder.customerId()).orElseThrow(() -> new IllegalArgumentException("Cliente não encontrado"));
 
+        order.setCustomer(customer);
+
         groupedItems.forEach((productId, quantity) -> {
 
             Product product = productsMap.get(productId);
+
+            product.setAvailableStock(product.getAvailableStock() - quantity);
 
             OrderItem orderItem = new OrderItem();
             orderItem.setProduct(product);
@@ -91,5 +95,30 @@ public class OrderService {
         orderRepository.save(order);
         return new OrderResponseDTO(order);
     }
+
+    @Transactional
+    public OrderResponseDTO updateStatus(Long id, OrderStatus newStatus) {
+
+        Order order = orderRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Pedido não encontrado"));
+
+        if (order.getOrderStatus() == OrderStatus.CANCELED || order.getOrderStatus() == OrderStatus.REFUSED) {
+            throw new IllegalArgumentException("Este pedido já foi encerrado e não pode ser alterado");
+        }
+
+        if (newStatus == OrderStatus.CANCELED || newStatus == OrderStatus.REFUSED) {
+
+            for (OrderItem orderItem : order.getOrderItems()) {
+                Product product = orderItem.getProduct();
+                product.setAvailableStock(product.getAvailableStock() + orderItem.getQuantity());
+            }
+
+        }
+
+        order.setOrderStatus(newStatus);
+
+        return new OrderResponseDTO(orderRepository.save(order));
+
+    }
+
 
 }
