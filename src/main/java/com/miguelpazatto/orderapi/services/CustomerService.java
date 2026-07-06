@@ -4,6 +4,8 @@ import com.miguelpazatto.orderapi.dto.CustomerRequestDTO;
 import com.miguelpazatto.orderapi.dto.CustomerResponseDTO;
 import com.miguelpazatto.orderapi.entities.Customer;
 import com.miguelpazatto.orderapi.repositories.CustomerRepository;
+import com.miguelpazatto.orderapi.services.exceptions.ResourceNotFoundException;
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -24,7 +26,7 @@ public class CustomerService {
 
     public CustomerResponseDTO findById(Long id) {
         Optional<Customer> customer = repository.findById(id);
-        return customer.map(CustomerResponseDTO::new).orElseThrow();
+        return customer.map(CustomerResponseDTO::new).orElseThrow(() -> new ResourceNotFoundException(id));
     }
 
     @Transactional
@@ -43,9 +45,13 @@ public class CustomerService {
 
     @Transactional
     public CustomerResponseDTO update(Long id, CustomerRequestDTO toBeChangedCustomer) {
-        Customer customer = repository.getReferenceById(id);
-        updateData(customer, toBeChangedCustomer);
-        return new CustomerResponseDTO(repository.save(customer));
+        try {
+            Customer customer = repository.getReferenceById(id);
+            updateData(customer, toBeChangedCustomer);
+            return new CustomerResponseDTO(repository.save(customer));
+        } catch (EntityNotFoundException e) {
+            throw new ResourceNotFoundException(id);
+        }
     }
 
     private void updateData(Customer customer, CustomerRequestDTO customerNewData) {

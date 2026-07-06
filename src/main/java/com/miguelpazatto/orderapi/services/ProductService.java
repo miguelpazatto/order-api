@@ -4,6 +4,8 @@ import com.miguelpazatto.orderapi.dto.ProductRequestDTO;
 import com.miguelpazatto.orderapi.dto.ProductResponseDTO;
 import com.miguelpazatto.orderapi.entities.Product;
 import com.miguelpazatto.orderapi.repositories.ProductRepository;
+import com.miguelpazatto.orderapi.services.exceptions.ResourceNotFoundException;
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -24,7 +26,7 @@ public class ProductService {
 
     public ProductResponseDTO findById(Long id) {
         Optional<Product> product = repository.findById(id);
-        return product.map(ProductResponseDTO::new).orElseThrow();
+        return product.map(ProductResponseDTO::new).orElseThrow(() -> new ResourceNotFoundException(id));
     }
 
     @Transactional
@@ -44,9 +46,13 @@ public class ProductService {
 
     @Transactional
     public ProductResponseDTO update(Long id, ProductRequestDTO toBeChangedProduct) {
-        Product product = repository.getReferenceById(id);
-        updateData(product, toBeChangedProduct);
-        return new ProductResponseDTO(repository.save(product));
+        try {
+            Product product = repository.getReferenceById(id);
+            updateData(product, toBeChangedProduct);
+            return new ProductResponseDTO(repository.save(product));
+        } catch (EntityNotFoundException e) {
+            throw new ResourceNotFoundException(id);
+        }
     }
 
     private void updateData(Product product, ProductRequestDTO productNewData) {

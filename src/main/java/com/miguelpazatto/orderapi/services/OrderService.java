@@ -11,6 +11,10 @@ import com.miguelpazatto.orderapi.entities.enums.OrderStatus;
 import com.miguelpazatto.orderapi.repositories.CustomerRepository;
 import com.miguelpazatto.orderapi.repositories.OrderRepository;
 import com.miguelpazatto.orderapi.repositories.ProductRepository;
+import com.miguelpazatto.orderapi.services.exceptions.InsufficientStockException;
+import com.miguelpazatto.orderapi.services.exceptions.InvalidOrderStatusException;
+import com.miguelpazatto.orderapi.services.exceptions.ProductInativeException;
+import com.miguelpazatto.orderapi.services.exceptions.ResourceNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -38,7 +42,7 @@ public class OrderService {
 
     public OrderResponseDTO findById(Long id) {
         Optional<Order> order = orderRepository.findById(id);
-        return order.map(OrderResponseDTO::new).orElseThrow();
+        return order.map(OrderResponseDTO::new).orElseThrow(() -> new ResourceNotFoundException(id));
     }
 
     @Transactional
@@ -61,11 +65,11 @@ public class OrderService {
             Product product = productsMap.get(productId);
 
             if (product == null) {
-                throw new IllegalArgumentException("Produto com ID " + productId + " não existe.");
+                throw new ResourceNotFoundException(productId);
             }
 
             if (quantity > product.getAvailableStock()) {
-                throw new IllegalArgumentException("Estoque do Produto com ID " + product.getId() + " insuficiente.");
+                throw new InsufficientStockException("Estoque do Produto com ID " + product.getId() + " insuficiente.");
             }
 
         });
@@ -73,7 +77,7 @@ public class OrderService {
         Order order = new Order();
         order.setOrderStatus(OrderStatus.PENDING);
 
-        Customer customer = customerRepository.findById(newOrder.customerId()).orElseThrow(() -> new IllegalArgumentException("Cliente não encontrado"));
+        Customer customer = customerRepository.findById(newOrder.customerId()).orElseThrow(() -> new ResourceNotFoundException(newOrder.customerId()));
 
         order.setCustomer(customer);
 
@@ -99,10 +103,10 @@ public class OrderService {
     @Transactional
     public OrderResponseDTO updateStatus(Long id, OrderStatus newStatus) {
 
-        Order order = orderRepository.findById(id).orElseThrow(() -> new IllegalArgumentException("Pedido não encontrado"));
+        Order order = orderRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException(id));
 
         if (order.getOrderStatus() == OrderStatus.CANCELED || order.getOrderStatus() == OrderStatus.REFUSED) {
-            throw new IllegalArgumentException("Este pedido já foi encerrado e não pode ser alterado");
+            throw new InvalidOrderStatusException("Este pedido já foi encerrado e não pode ser alterado");
         }
 
         if (newStatus == OrderStatus.CANCELED || newStatus == OrderStatus.REFUSED) {
